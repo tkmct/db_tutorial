@@ -5,17 +5,17 @@ pub enum StatementKind {
     Select,
 }
 
-pub struct Statement<'a> {
+pub struct Statement {
     kind: StatementKind,
-    row: Option<Row<'a>>,
+    row: Option<Row>,
 }
 
 pub type StatementError = String;
 
 // Hard coded table
 
-impl<'a> Statement<'a> {
-    pub fn prepare(input: &'a str) -> Result<Self, StatementError> {
+impl Statement {
+    pub fn prepare(input: &str) -> Result<Self, StatementError> {
         // TODO: refactor to use function to match first word in input
 
         if input.starts_with("select") {
@@ -32,10 +32,10 @@ impl<'a> Statement<'a> {
             let id = raw_args[1].parse::<u32>().unwrap();
 
             // TODO: add validation of username length
-            let username = raw_args[2];
+            let username = String::from(raw_args[2]);
 
             // TODO: add validation of email length
-            let email = raw_args[3];
+            let email = String::from(raw_args[3]);
 
             let row = Row::new(id, username, email);
 
