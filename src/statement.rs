@@ -1,24 +1,52 @@
+use super::row::*;
+
 pub enum StatementKind {
     Insert,
     Select,
 }
 
-pub struct Statement {
+pub struct Statement<'a> {
     kind: StatementKind,
+    row: Option<Row<'a>>,
 }
 
 pub type StatementError = String;
 
-impl Statement {
-    pub fn prepare(input: &str) -> Result<Self, StatementError> {
+// Hard coded table
+
+impl<'a> Statement<'a> {
+    pub fn prepare(input: &'a str) -> Result<Self, StatementError> {
         // TODO: refactor to use function to match first word in input
+
         if input.starts_with("select") {
+            // scan arguments
+
+            let raw_args: Vec<&str> = input.split_whitespace().collect();
+
+            // check if length of arguments match length of the table
+            // FIXME: hard coded length
+            if raw_args.len() != 4 {
+                return Err(String::from("arguments length does not match"));
+            }
+
+            let id = raw_args[1].parse::<u32>().unwrap();
+
+            // TODO: add validation of username length
+            let username = raw_args[2];
+
+            // TODO: add validation of email length
+            let email = raw_args[3];
+
+            let row = Row::new(id, username, email);
+
             Ok(Statement {
                 kind: StatementKind::Select,
+                row: Some(row),
             })
         } else if input.starts_with("insert") {
             Ok(Statement {
                 kind: StatementKind::Insert,
+                row: None,
             })
         } else {
             Err(String::from("invalid input"))

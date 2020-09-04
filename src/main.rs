@@ -1,4 +1,5 @@
 mod meta_command;
+mod row;
 mod statement;
 
 use meta_command::*;
