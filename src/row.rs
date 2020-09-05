@@ -1,7 +1,8 @@
 use std::convert::TryInto;
+use std::fmt;
 use std::iter::{self, FromIterator};
 
-pub const ROW_LENGTH: usize = 291;
+pub const ROW_SIZE: usize = 291;
 
 pub const COLUMN_ID_SIZE: usize = 4;
 pub const COLUMN_USERNAME_SIZE: usize = 32;
@@ -28,7 +29,7 @@ impl Row {
     /// each field has length of 4, 32, 255 bytes.
     /// length of serialized vector will be 291
     pub fn serialize(&self) -> Vec<u8> {
-        let mut result = Vec::<u8>::with_capacity(ROW_LENGTH);
+        let mut result = Vec::<u8>::with_capacity(ROW_SIZE);
 
         // id_bytes length is 4
         let id_bytes = self.id.to_le_bytes();
@@ -58,9 +59,9 @@ impl Row {
     }
 
     /// deserialize fixed length vector of u8
-    /// input vector must be length of `ROW_LENGTH`
+    /// input vector must be length of `ROW_SIZE`
     pub fn deserialize(input: Vec<u8>) -> Option<Self> {
-        if input.len() != ROW_LENGTH {
+        if input.len() != ROW_SIZE {
             return None;
         }
 
@@ -84,6 +85,18 @@ impl Row {
             username,
             email,
         })
+    }
+}
+
+impl fmt::Display for Row {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "({}, {}, {})",
+            self.id,
+            self.username.trim_end_matches(NULL_CHAR),
+            self.email.trim_end_matches(NULL_CHAR)
+        )
     }
 }
 

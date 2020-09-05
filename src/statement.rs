@@ -1,4 +1,5 @@
 use super::row::*;
+use super::table::*;
 
 pub enum StatementKind {
     Insert,
@@ -12,13 +13,19 @@ pub struct Statement {
 
 pub type StatementError = String;
 
+pub enum ExecuteResult {
+    Success,
+    TableFull,
+    EmptyRow,
+}
+
 // Hard coded table
 
 impl Statement {
     pub fn prepare(input: &str) -> Result<Self, StatementError> {
         // TODO: refactor to use function to match first word in input
 
-        if input.starts_with("select") {
+        if input.starts_with("insert") {
             // scan arguments
 
             let raw_args: Vec<&str> = input.split_whitespace().collect();
@@ -40,12 +47,12 @@ impl Statement {
             let row = Row::new(id, username, email);
 
             Ok(Statement {
-                kind: StatementKind::Select,
+                kind: StatementKind::Insert,
                 row: Some(row),
             })
-        } else if input.starts_with("insert") {
+        } else if input.starts_with("select") {
             Ok(Statement {
-                kind: StatementKind::Insert,
+                kind: StatementKind::Select,
                 row: None,
             })
         } else {
@@ -53,10 +60,48 @@ impl Statement {
         }
     }
 
-    pub fn execute(&self) {
+    fn execute_insert(&self, table: &mut Table) -> ExecuteResult {
+        let current_num_rows = table.num_rows;
+
+        if current_num_rows >= TABLE_MAX_ROWS {
+            return ExecuteResult::TableFull;
+        }
+
+        if let Some(row_to_insert) = &self.row {
+            let serialized = row_to_insert.serialize();
+
+            let (page, num) = table.row_slots(current_num_rows);
+            let _ = page.insert_row(num, serialized);
+
+            table.num_rows += 1;
+
+            return ExecuteResult::Success;
+        }
+
+        // This should not happen.
+        ExecuteResult::EmptyRow
+    }
+
+    fn execute_select(&self, table: &mut Table) -> ExecuteResult {
+        println!("num_rows: {}", table.num_rows);
+        for i in 0..table.num_rows {
+            let (page, num) = table.row_slots(i);
+
+            page.get_row(num)
+                .and_then(|raw| Row::deserialize(raw))
+                .and_then(|row| {
+                    println!("{}", row);
+                    Some(())
+                });
+        }
+
+        ExecuteResult::Success
+    }
+
+    pub fn execute(&self, table: &mut Table) -> ExecuteResult {
         match self.kind {
-            StatementKind::Insert => println!("This is where we do an insert."),
-            StatementKind::Select => println!("This is where we do an select."),
+            StatementKind::Insert => self.execute_insert(table),
+            StatementKind::Select => self.execute_select(table),
         }
     }
 }
