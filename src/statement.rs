@@ -1,11 +1,13 @@
 use super::row::*;
 use super::table::*;
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum StatementKind {
     Insert,
     Select,
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct Statement {
     kind: StatementKind,
     row: Option<Row>,
@@ -13,8 +15,10 @@ pub struct Statement {
 
 pub type StatementError = String;
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum ExecuteResult {
-    Success,
+    InsertSuccess,
+    SelectSuccess(Vec<Row>),
     TableFull,
     EmptyRow,
 }
@@ -38,10 +42,14 @@ impl Statement {
 
             let id = raw_args[1].parse::<u32>().unwrap();
 
-            // TODO: add validation of username length
+            if raw_args[2].len() > COLUMN_USERNAME_SIZE {
+                return Err(String::from("Too long string."));
+            }
             let username = String::from(raw_args[2]);
 
-            // TODO: add validation of email length
+            if raw_args[3].len() > COLUMN_EMAIL_SIZE {
+                return Err(String::from("Too long string."));
+            }
             let email = String::from(raw_args[3]);
 
             let row = Row::new(id, username, email);
@@ -75,7 +83,7 @@ impl Statement {
 
             table.num_rows += 1;
 
-            return ExecuteResult::Success;
+            return ExecuteResult::InsertSuccess;
         }
 
         // This should not happen.
@@ -83,19 +91,17 @@ impl Statement {
     }
 
     fn execute_select(&self, table: &mut Table) -> ExecuteResult {
-        println!("num_rows: {}", table.num_rows);
+        let mut res = Vec::new();
+
         for i in 0..table.num_rows {
             let (page, num) = table.row_slots(i);
 
-            page.get_row(num)
-                .and_then(|raw| Row::deserialize(raw))
-                .and_then(|row| {
-                    println!("{}", row);
-                    Some(())
-                });
+            if let Some(row) = page.get_row(num).and_then(|raw| Row::deserialize(raw)) {
+                res.push(row);
+            }
         }
 
-        ExecuteResult::Success
+        ExecuteResult::SelectSuccess(res)
     }
 
     pub fn execute(&self, table: &mut Table) -> ExecuteResult {
@@ -103,5 +109,81 @@ impl Statement {
             StatementKind::Insert => self.execute_insert(table),
             StatementKind::Select => self.execute_select(table),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::table::Table;
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn test_insert_then_select() -> Result<(), Box<dyn Error>> {
+        let mut table = Table::new();
+        let stmt = Statement::prepare("insert 1 user user@example.com")?;
+
+        let result = stmt.execute(&mut table);
+        assert_eq!(result, ExecuteResult::InsertSuccess);
+
+        let stmt = Statement::prepare("select")?;
+        let result = stmt.execute(&mut table);
+        assert_eq!(
+            result,
+            ExecuteResult::SelectSuccess(vec![Row::new(
+                1,
+                String::from("user"),
+                String::from("user@example.com")
+            )])
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_table_is_full() -> Result<(), Box<dyn Error>> {
+        let mut table = Table::new();
+        let mut i = 1;
+        let result = loop {
+            let stmt =
+                Statement::prepare(&format!("insert {i} user{i} user{i}@example.com", i = i))?;
+            let result = stmt.execute(&mut table);
+
+            if i == 1401 {
+                break result;
+            }
+
+            i += 1;
+        };
+
+        assert_eq!(result, ExecuteResult::TableFull);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_insert_with_max_input_length() -> Result<(), Box<dyn Error>> {
+        let mut table = Table::new();
+
+        let long_username: String = ['a'; 32].iter().collect();
+        let long_email: String = ['a'; 255].iter().collect();
+
+        let stmt = Statement::prepare(&format!("insert 1 {} {}", long_username, long_email))?;
+
+        let result = stmt.execute(&mut table);
+        assert_eq!(result, ExecuteResult::InsertSuccess);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_insert_fails_with_too_long_string() -> Result<(), Box<dyn Error>> {
+        let long_username: String = ['a'; 33].iter().collect();
+        let long_email: String = ['a'; 256].iter().collect();
+
+        let result = Statement::prepare(&format!("insert 1 {} {}", long_username, long_email));
+        assert_eq!(result, Err(String::from("Too long string.")));
+
+        Ok(())
     }
 }

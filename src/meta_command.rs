@@ -1,5 +1,4 @@
 pub enum MetaCommandResult {
-    Success,
     Exited,
     Fail(String),
 }
