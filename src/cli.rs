@@ -1,12 +1,17 @@
 use super::meta_command::*;
 use super::statement::*;
 use super::table::*;
+use std::error::Error;
 use std::io::{self, prelude::*};
 
-pub fn start() -> Result<(), io::Error> {
+pub fn start(filename: &str) -> Result<(), Box<dyn Error>> {
     use MetaCommandResult::*;
 
-    let table = &mut Table::new();
+    println!("Starting Database client.");
+    println!("database file: {}", filename);
+    println!("");
+
+    let table = &mut Table::open(filename)?;
 
     loop {
         print!("db > ");
@@ -19,7 +24,7 @@ pub fn start() -> Result<(), io::Error> {
         let buffer = buffer.trim();
 
         if buffer.starts_with('.') {
-            match do_meta_command(buffer) {
+            match do_meta_command(buffer, table) {
                 Exited => break,
                 Fail(reason) => {
                     println!("Fail: {}", reason);

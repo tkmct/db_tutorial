@@ -76,13 +76,8 @@ impl Statement {
         }
 
         if let Some(row_to_insert) = &self.row {
-            let serialized = row_to_insert.serialize();
-
-            let (page, num) = table.row_slots(current_num_rows);
-            let _ = page.insert_row(num, serialized);
-
+            let _ = table.insert_row(&row_to_insert);
             table.num_rows += 1;
-
             return ExecuteResult::InsertSuccess;
         }
 
@@ -117,10 +112,14 @@ mod tests {
     use super::super::table::Table;
     use super::*;
     use std::error::Error;
+    use std::fs;
+
+    const test_file: &str = "db_test";
 
     #[test]
     fn test_insert_then_select() -> Result<(), Box<dyn Error>> {
-        let mut table = Table::new();
+        let _ = fs::remove_file(test_file);
+        let mut table = Table::open(test_file)?;
         let stmt = Statement::prepare("insert 1 user user@example.com")?;
 
         let result = stmt.execute(&mut table);
@@ -137,12 +136,14 @@ mod tests {
             )])
         );
 
+        let _ = fs::remove_file(test_file);
         Ok(())
     }
 
     #[test]
     fn test_table_is_full() -> Result<(), Box<dyn Error>> {
-        let mut table = Table::new();
+        let _ = fs::remove_file(test_file);
+        let mut table = Table::open(test_file)?;
         let mut i = 1;
         let result = loop {
             let stmt =
@@ -158,12 +159,14 @@ mod tests {
 
         assert_eq!(result, ExecuteResult::TableFull);
 
+        let _ = fs::remove_file(test_file);
         Ok(())
     }
 
     #[test]
     fn test_insert_with_max_input_length() -> Result<(), Box<dyn Error>> {
-        let mut table = Table::new();
+        let _ = fs::remove_file(test_file);
+        let mut table = Table::open(test_file)?;
 
         let long_username: String = ['a'; 32].iter().collect();
         let long_email: String = ['a'; 255].iter().collect();
@@ -173,16 +176,47 @@ mod tests {
         let result = stmt.execute(&mut table);
         assert_eq!(result, ExecuteResult::InsertSuccess);
 
+        let _ = fs::remove_file(test_file);
         Ok(())
     }
 
     #[test]
     fn test_insert_fails_with_too_long_string() -> Result<(), Box<dyn Error>> {
+        let _ = fs::remove_file(test_file);
         let long_username: String = ['a'; 33].iter().collect();
         let long_email: String = ['a'; 256].iter().collect();
 
         let result = Statement::prepare(&format!("insert 1 {} {}", long_username, long_email));
         assert_eq!(result, Err(String::from("Too long string.")));
+
+        let _ = fs::remove_file(test_file);
+        Ok(())
+    }
+
+    #[test]
+    fn test_persistence() -> Result<(), Box<dyn Error>> {
+        {
+            let mut table = Table::open(test_file)?;
+            let stmt = Statement::prepare("insert 1 user user@example.com")?;
+
+            let result = stmt.execute(&mut table);
+            assert_eq!(result, ExecuteResult::InsertSuccess);
+            table.close();
+        }
+
+        {
+            let mut table = Table::open(test_file)?;
+            let stmt = Statement::prepare("select")?;
+            let result = stmt.execute(&mut table);
+            assert_eq!(
+                result,
+                ExecuteResult::SelectSuccess(vec![Row::new(
+                    1,
+                    String::from("user"),
+                    String::from("user@example.com")
+                )])
+            );
+        }
 
         Ok(())
     }

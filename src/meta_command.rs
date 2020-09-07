@@ -1,13 +1,18 @@
+use super::table::Table;
+
 pub enum MetaCommandResult {
     Exited,
     Fail(String),
 }
 
-pub fn do_meta_command(command: &str) -> MetaCommandResult {
+pub fn do_meta_command(command: &str, table: &mut Table) -> MetaCommandResult {
     use MetaCommandResult::*;
 
     match command {
-        ".exit" => Exited,
+        ".exit" => {
+            table.close();
+            Exited
+        }
         _ => Fail(format!("unrecognizable command `{}`", command)),
     }
 }
