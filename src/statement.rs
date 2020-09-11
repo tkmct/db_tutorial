@@ -76,7 +76,8 @@ impl Statement {
         }
 
         if let Some(row_to_insert) = &self.row {
-            let _ = table.insert_row(&row_to_insert);
+            let mut cursor = table.table_end();
+            let _ = cursor.insert_value(&row_to_insert);
             table.num_rows += 1;
             return ExecuteResult::InsertSuccess;
         }
@@ -88,12 +89,12 @@ impl Statement {
     fn execute_select(&self, table: &mut Table) -> ExecuteResult {
         let mut res = Vec::new();
 
-        for i in 0..table.num_rows {
-            let (page, num) = table.row_slots(i);
-
-            if let Some(row) = page.get_row(num).and_then(|raw| Row::deserialize(raw)) {
+        let mut cursor = table.table_start();
+        while !cursor.is_end() {
+            if let Some(row) = cursor.get_value().and_then(|raw| Row::deserialize(raw)) {
                 res.push(row);
             }
+            cursor.advance_cursor();
         }
 
         ExecuteResult::SelectSuccess(res)
@@ -118,78 +119,76 @@ mod tests {
 
     #[test]
     fn test_insert_then_select() -> Result<(), Box<dyn Error>> {
-        let _ = fs::remove_file(test_file);
-        let mut table = Table::open(test_file)?;
-        let stmt = Statement::prepare("insert 1 user user@example.com")?;
+        {
+            let mut table = Table::open(test_file)?;
+            let stmt = Statement::prepare("insert 1 user user@example.com")?;
 
-        let result = stmt.execute(&mut table);
-        assert_eq!(result, ExecuteResult::InsertSuccess);
+            let result = stmt.execute(&mut table);
+            assert_eq!(result, ExecuteResult::InsertSuccess);
 
-        let stmt = Statement::prepare("select")?;
-        let result = stmt.execute(&mut table);
-        assert_eq!(
-            result,
-            ExecuteResult::SelectSuccess(vec![Row::new(
-                1,
-                String::from("user"),
-                String::from("user@example.com")
-            )])
-        );
-
+            let stmt = Statement::prepare("select")?;
+            let result = stmt.execute(&mut table);
+            assert_eq!(
+                result,
+                ExecuteResult::SelectSuccess(vec![Row::new(
+                    1,
+                    String::from("user"),
+                    String::from("user@example.com")
+                )])
+            );
+        }
         let _ = fs::remove_file(test_file);
         Ok(())
     }
 
     #[test]
     fn test_table_is_full() -> Result<(), Box<dyn Error>> {
-        let _ = fs::remove_file(test_file);
-        let mut table = Table::open(test_file)?;
-        let mut i = 1;
-        let result = loop {
-            let stmt =
-                Statement::prepare(&format!("insert {i} user{i} user{i}@example.com", i = i))?;
-            let result = stmt.execute(&mut table);
+        {
+            let mut table = Table::open(test_file)?;
+            let mut i = 1;
+            let result = loop {
+                let stmt =
+                    Statement::prepare(&format!("insert {i} user{i} user{i}@example.com", i = i))?;
+                let result = stmt.execute(&mut table);
 
-            if i == 1401 {
-                break result;
-            }
+                if i == 1401 {
+                    break result;
+                }
 
-            i += 1;
-        };
+                i += 1;
+            };
 
-        assert_eq!(result, ExecuteResult::TableFull);
-
+            assert_eq!(result, ExecuteResult::TableFull);
+        }
         let _ = fs::remove_file(test_file);
         Ok(())
     }
 
     #[test]
     fn test_insert_with_max_input_length() -> Result<(), Box<dyn Error>> {
-        let _ = fs::remove_file(test_file);
-        let mut table = Table::open(test_file)?;
+        {
+            let mut table = Table::open(test_file)?;
 
-        let long_username: String = ['a'; 32].iter().collect();
-        let long_email: String = ['a'; 255].iter().collect();
+            let long_username: String = ['a'; 32].iter().collect();
+            let long_email: String = ['a'; 255].iter().collect();
 
-        let stmt = Statement::prepare(&format!("insert 1 {} {}", long_username, long_email))?;
+            let stmt = Statement::prepare(&format!("insert 1 {} {}", long_username, long_email))?;
 
-        let result = stmt.execute(&mut table);
-        assert_eq!(result, ExecuteResult::InsertSuccess);
-
+            let result = stmt.execute(&mut table);
+            assert_eq!(result, ExecuteResult::InsertSuccess);
+        }
         let _ = fs::remove_file(test_file);
         Ok(())
     }
 
     #[test]
     fn test_insert_fails_with_too_long_string() -> Result<(), Box<dyn Error>> {
-        let _ = fs::remove_file(test_file);
         let long_username: String = ['a'; 33].iter().collect();
         let long_email: String = ['a'; 256].iter().collect();
 
         let result = Statement::prepare(&format!("insert 1 {} {}", long_username, long_email));
         assert_eq!(result, Err(String::from("Too long string.")));
 
-        let _ = fs::remove_file(test_file);
         Ok(())
     }
 
@@ -206,6 +205,7 @@ mod tests {
 
         {
             let mut table = Table::open(test_file)?;
+            println!("Table size: {}", table.num_rows);
             let stmt = Statement::prepare("select")?;
             let result = stmt.execute(&mut table);
             assert_eq!(
@@ -218,6 +218,7 @@ mod tests {
             );
         }
 
+        let _ = fs::remove_file(test_file);
         Ok(())
     }
 }

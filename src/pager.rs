@@ -7,8 +7,6 @@ use std::io::{Read, Seek, SeekFrom, Write};
 
 pub struct Pager {
     pub file: std::fs::File,
-    // pub file_descriptor: usize,
-    // pub file_length: usize,
     pub pages: Vec<Option<Page>>,
 }
 
@@ -38,7 +36,7 @@ impl Pager {
             .seek(SeekFrom::Start((page_num * PAGE_SIZE) as u64))
             .unwrap();
         let content = &self.pages[page_num].as_ref().unwrap().buffer[..buff_size];
-        let _ = self.file.write(content).unwrap();
+        let _ = self.file.write_all(content);
     }
 
     pub fn get_file_length(&mut self) -> u64 {

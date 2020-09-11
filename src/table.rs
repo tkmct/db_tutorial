@@ -1,9 +1,4 @@
-use super::{
-    page::*,
-    pager::Pager,
-    row::{Row, ROW_SIZE},
-};
-
+use super::{cursor::Cursor, page::*, pager::Pager, row::ROW_SIZE};
 use std::error::Error;
 
 pub const TABLE_MAX_PAGES: usize = 100;
@@ -45,24 +40,11 @@ impl Table {
         }
     }
 
-    /// returns slice where to read/write in memory for a particular row
-    pub fn row_slots(&mut self, row_num: usize) -> (&Page, usize) {
-        let page_num = row_num / ROWS_PER_PAGE;
-        self.pager.prepare_page(page_num);
-
-        let page = self.pager.pages[page_num].as_ref().unwrap();
-        let row_offset = row_num % ROWS_PER_PAGE;
-        let byte_offset = row_offset * ROW_SIZE;
-
-        (page, byte_offset)
+    pub fn table_start(&mut self) -> Cursor {
+        Cursor::new(self, 0, self.num_rows == 0)
     }
 
-    pub fn insert_row(&mut self, row: &Row) -> Result<(), Box<dyn Error>> {
-        let row_num = self.num_rows;
-        let page_num = row_num / ROWS_PER_PAGE;
-        let row_offset = row_num % ROWS_PER_PAGE;
-        let byte_offset = row_offset * ROW_SIZE;
-
-        self.pager.insert_at(row, page_num, byte_offset)
+    pub fn table_end(&mut self) -> Cursor {
+        Cursor::new(self, self.num_rows, true)
     }
 }

@@ -1,4 +1,5 @@
 mod cli;
+mod cursor;
 mod meta_command;
 mod page;
 mod pager;

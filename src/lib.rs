@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod cursor;
 pub mod meta_command;
 pub mod page;
 pub mod pager;
