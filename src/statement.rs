@@ -115,12 +115,12 @@ mod tests {
     use std::error::Error;
     use std::fs;
 
-    const test_file: &str = "db_test";
+    const TEST_FILE: &str = "db_test";
 
     #[test]
     fn test_insert_then_select() -> Result<(), Box<dyn Error>> {
         {
-            let mut table = Table::open(test_file)?;
+            let mut table = Table::open(TEST_FILE)?;
             let stmt = Statement::prepare("insert 1 user user@example.com")?;
 
             let result = stmt.execute(&mut table);
@@ -137,14 +137,14 @@ mod tests {
                 )])
             );
         }
-        let _ = fs::remove_file(test_file);
+        let _ = fs::remove_file(TEST_FILE);
         Ok(())
     }
 
     #[test]
     fn test_table_is_full() -> Result<(), Box<dyn Error>> {
         {
-            let mut table = Table::open(test_file)?;
+            let mut table = Table::open(TEST_FILE)?;
             let mut i = 1;
             let result = loop {
                 let stmt =
@@ -160,14 +160,14 @@ mod tests {
 
             assert_eq!(result, ExecuteResult::TableFull);
         }
-        let _ = fs::remove_file(test_file);
+        let _ = fs::remove_file(TEST_FILE);
         Ok(())
     }
 
     #[test]
     fn test_insert_with_max_input_length() -> Result<(), Box<dyn Error>> {
         {
-            let mut table = Table::open(test_file)?;
+            let mut table = Table::open(TEST_FILE)?;
 
             let long_username: String = ['a'; 32].iter().collect();
             let long_email: String = ['a'; 255].iter().collect();
@@ -177,7 +177,7 @@ mod tests {
             let result = stmt.execute(&mut table);
             assert_eq!(result, ExecuteResult::InsertSuccess);
         }
-        let _ = fs::remove_file(test_file);
+        let _ = fs::remove_file(TEST_FILE);
         Ok(())
     }
 
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn test_persistence() -> Result<(), Box<dyn Error>> {
         {
-            let mut table = Table::open(test_file)?;
+            let mut table = Table::open(TEST_FILE)?;
             let stmt = Statement::prepare("insert 1 user user@example.com")?;
 
             let result = stmt.execute(&mut table);
@@ -204,7 +204,7 @@ mod tests {
         }
 
         {
-            let mut table = Table::open(test_file)?;
+            let mut table = Table::open(TEST_FILE)?;
             println!("Table size: {}", table.num_rows);
             let stmt = Statement::prepare("select")?;
             let result = stmt.execute(&mut table);
@@ -218,7 +218,7 @@ mod tests {
             );
         }
 
-        let _ = fs::remove_file(test_file);
+        let _ = fs::remove_file(TEST_FILE);
         Ok(())
     }
 }
