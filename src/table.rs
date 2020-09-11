@@ -40,10 +40,12 @@ impl Table {
         }
     }
 
+    /// returns cursor pointing to the start of the table
     pub fn table_start(&mut self) -> Cursor {
         Cursor::new(self, 0, self.num_rows == 0)
     }
 
+    /// returns cursor pointing to the end of the table
     pub fn table_end(&mut self) -> Cursor {
         Cursor::new(self, self.num_rows, true)
     }
