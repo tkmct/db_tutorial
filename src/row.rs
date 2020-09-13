@@ -9,7 +9,7 @@ pub const COLUMN_USERNAME_SIZE: usize = 32;
 pub const COLUMN_EMAIL_SIZE: usize = 255;
 const NULL_CHAR: char = '\0';
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Row {
     id: u32,
     username: String,
