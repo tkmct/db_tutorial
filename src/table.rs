@@ -1,8 +1,6 @@
 use super::{btree::LeafNode, cursor::Cursor, pager::Pager};
 use std::error::Error;
 
-pub const TABLE_MAX_PAGES: usize = 100;
-
 pub struct Table {
     pub root_page_num: usize, // index of root node
     pub pager: Pager,

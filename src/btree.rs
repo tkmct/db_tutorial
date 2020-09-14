@@ -109,14 +109,6 @@ impl LeafNode {
         Some(self.body[num].1.clone())
     }
 
-    pub fn get_key(&self, num: usize) -> Option<Key> {
-        if num >= self.num_cells() {
-            return None;
-        }
-
-        Some(self.body[num].0)
-    }
-
     pub fn insert_at(&mut self, pos: usize, key: Key, value: Value) -> Result<(), Box<dyn Error>> {
         if self.num_cells() >= MAX_NUM_CELLS {
             unimplemented!("please implement splitting a leaf node");
