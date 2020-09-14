@@ -1,10 +1,11 @@
 use super::row::Row;
 use std::convert::TryInto;
+use std::error::Error;
 use std::mem::size_of;
 use std::ops::Range;
 
 // CONSTANTS
-const PAGE_SIZE: usize = 4096;
+pub const PAGE_SIZE: usize = 4096;
 const ROW_SIZE: usize = 291;
 
 // NODE HEADER CONSTANTS
@@ -31,16 +32,16 @@ const LEAF_NODE_KEY_SIZE: usize = size_of::<u32>();
 const LEAF_NODE_VALUE_SIZE: usize = ROW_SIZE;
 const CELL_SIZE: usize = LEAF_NODE_KEY_SIZE + LEAF_NODE_VALUE_SIZE;
 const CELLS_SPACE: usize = PAGE_SIZE - HEADER_SIZE;
-const MAX_NUM_CELLS: usize = CELLS_SPACE / CELL_SIZE;
+pub const MAX_NUM_CELLS: usize = CELLS_SPACE / CELL_SIZE;
 
 type Key = u32;
 type Value = Row;
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct LeafNodeHeader {
-    is_root: bool,
-    parent: u32,
-    num_cells: u32,
+    pub is_root: bool,
+    pub parent: u32,
+    pub num_cells: usize,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -85,19 +86,19 @@ impl LeafNode {
         vec![1]
     }
 
+    pub fn num_cells(&self) -> usize {
+        self.header.num_cells
+    }
+
     pub fn new(is_root: bool, parent: u32, num_cells: u32, body: Vec<(Key, Value)>) -> Self {
         Self {
             header: LeafNodeHeader {
                 is_root,
                 parent,
-                num_cells,
+                num_cells: num_cells as usize,
             },
             body,
         }
-    }
-
-    pub fn num_cells(&self) -> usize {
-        self.header.num_cells as usize
     }
 
     pub fn get_value(&self, num: usize) -> Option<Value> {
@@ -116,6 +117,17 @@ impl LeafNode {
         Some(self.body[num].0)
     }
 
+    pub fn insert_at(&mut self, pos: usize, key: Key, value: Value) -> Result<(), Box<dyn Error>> {
+        if self.num_cells() >= MAX_NUM_CELLS {
+            unimplemented!("please implement splitting a leaf node");
+        }
+
+        self.body.insert(pos, (key, value));
+
+        self.header.num_cells += 1;
+        Ok(())
+    }
+
     pub fn serialize(&self) -> Vec<u8> {
         let mut buff = vec![0; PAGE_SIZE];
 
@@ -128,7 +140,7 @@ impl LeafNode {
         );
         buff.splice(
             LeafNode::NUM_CELLS_RANGE,
-            u32_to_bytes(self.header.num_cells),
+            u32_to_bytes(self.num_cells() as u32),
         );
 
         // Serialize values

@@ -11,9 +11,9 @@ const NULL_CHAR: char = '\0';
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Row {
-    id: u32,
-    username: String,
-    email: String,
+    pub id: u32,
+    pub username: String,
+    pub email: String,
 }
 
 impl Row {

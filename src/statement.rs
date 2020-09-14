@@ -1,5 +1,4 @@
-use super::row::*;
-use super::table::*;
+use super::{btree::MAX_NUM_CELLS, row::*, table::*};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum StatementKind {
@@ -69,16 +68,17 @@ impl Statement {
     }
 
     fn execute_insert(&self, table: &mut Table) -> ExecuteResult {
-        let current_num_rows = table.num_rows;
+        // TODO: get num_cell of node
+        let num_cells = table.get_node(table.root_page_num).unwrap().num_cells();
 
-        if current_num_rows >= TABLE_MAX_ROWS {
+        if num_cells >= MAX_NUM_CELLS {
             return ExecuteResult::TableFull;
         }
 
         if let Some(row_to_insert) = &self.row {
             let mut cursor = table.table_end();
             let _ = cursor.insert_value(&row_to_insert);
-            table.num_rows += 1;
+
             return ExecuteResult::InsertSuccess;
         }
 
@@ -91,10 +91,10 @@ impl Statement {
 
         let mut cursor = table.table_start();
         while !cursor.is_end() {
-            if let Some(row) = cursor.get_value().and_then(|raw| Row::deserialize(raw)) {
+            if let Some(row) = cursor.get_value() {
                 res.push(row);
             }
-            cursor.advance_cursor();
+            cursor.advance();
         }
 
         ExecuteResult::SelectSuccess(res)
@@ -205,7 +205,6 @@ mod tests {
 
         {
             let mut table = Table::open(TEST_FILE)?;
-            println!("Table size: {}", table.num_rows);
             let stmt = Statement::prepare("select")?;
             let result = stmt.execute(&mut table);
             assert_eq!(

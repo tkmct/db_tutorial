@@ -1,7 +1,7 @@
+mod btree;
 mod cli;
 mod cursor;
 mod meta_command;
-mod page;
 mod pager;
 mod row;
 mod statement;

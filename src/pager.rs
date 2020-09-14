@@ -1,13 +1,12 @@
-use super::page::{Page, PAGE_SIZE};
+use super::btree::{LeafNode, PAGE_SIZE};
 use super::row::Row;
-use super::table::TABLE_MAX_PAGES;
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 
 pub struct Pager {
     pub file: std::fs::File,
-    pub pages: Vec<Option<Page>>,
+    pub pages: Vec<LeafNode>,
 }
 
 impl Pager {
@@ -18,24 +17,33 @@ impl Pager {
             .create(true)
             .open(filename)?;
 
-        let mut pages = Vec::new();
-        for _ in 0..TABLE_MAX_PAGES {
-            pages.push(None);
+        let pages = Vec::new();
+        let mut pager = Pager { file, pages };
+
+        let file_length = pager.get_file_length();
+        let num_pages = file_length as usize / PAGE_SIZE;
+
+        if file_length == 0 {
+            return Ok(pager);
         }
 
-        Ok(Pager { file, pages })
+        for i in 0..num_pages {
+            pager.prepare_page(i);
+        }
+
+        Ok(pager)
     }
 
     /// flush data in memory to disk
-    pub fn flush(&mut self, page_num: usize, buff_size: usize) {
-        if self.pages[page_num].is_none() {
+    pub fn flush(&mut self, page_num: usize) {
+        if self.pages.get(page_num).is_none() {
             panic!("Tried to flush null page");
         }
 
         self.file
             .seek(SeekFrom::Start((page_num * PAGE_SIZE) as u64))
             .unwrap();
-        let content = &self.pages[page_num].as_ref().unwrap().buffer[..buff_size];
+        let content = &self.pages[page_num].serialize();
         let _ = self.file.write_all(content);
     }
 
@@ -45,43 +53,45 @@ impl Pager {
     }
 
     pub fn prepare_page(&mut self, page_num: usize) {
-        if self.pages[page_num].is_some() {
+        if self.pages.get(page_num).is_some() {
             return ();
         }
 
-        let mut page = Page::new();
-
         let file_length = self.get_file_length() as usize;
-        let mut num_pages = file_length / PAGE_SIZE;
+        let num_pages_on_file = file_length / PAGE_SIZE;
         if file_length % PAGE_SIZE != 0 {
-            num_pages += 1;
+            // this should not happen
+            panic!("broken file");
         }
 
-        if page_num <= num_pages {
-            let offset = page_num * PAGE_SIZE;
-
-            let mut buff = vec![0; PAGE_SIZE];
-            self.file.seek(SeekFrom::Start(offset as u64)).unwrap();
-            let _ = self.file.read(&mut buff);
-            page.load_content(buff);
+        if num_pages_on_file <= page_num {
+            panic!("page_num out of index");
         }
 
-        self.pages[page_num] = Some(page);
+        let file_offset = (page_num * PAGE_SIZE) as u64;
+        let mut buff = vec![0; PAGE_SIZE];
+
+        let _ = self.file.seek(SeekFrom::Start(file_offset));
+        let _ = self.file.read(&mut buff);
+
+        if let Some(node) = LeafNode::deserialize(buff) {
+            self.pages.push(node);
+        } else {
+            panic!("broken file")
+        }
     }
 
     pub fn insert_at(
         &mut self,
         row: &Row,
         page_num: usize,
-        byte_offset: usize,
+        pos: usize,
     ) -> Result<(), Box<dyn Error>> {
-        // load content to page if page is none
-        self.prepare_page(page_num);
-
-        if let Some(ref mut page) = self.pages[page_num] {
-            page.insert_row(byte_offset, row.serialize())?;
+        if self.pages.len() <= page_num {
+            panic!("index out of bounds");
         }
-
+        let node = &mut self.pages[page_num];
+        let _ = node.insert_at(pos, row.id, row.clone());
         Ok(())
     }
 }
