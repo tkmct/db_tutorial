@@ -1,4 +1,4 @@
-use super::{page::*, row::*, table::*};
+use super::{row::*, table::*};
 
 pub struct Cursor<'a> {
     table: &'a mut Table,
