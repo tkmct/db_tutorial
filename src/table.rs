@@ -42,6 +42,43 @@ impl Table {
         Cursor::new(self, self.root_page_num, num_cells, true)
     }
 
+    /// returns cursor pointing to the given key
+    pub fn table_find(&mut self, key: u32) -> Cursor {
+        let root_page_num = self.root_page_num;
+        if let Some(root_node) = self.get_node(root_page_num) {
+            if root_node.is_root() {
+                return self.leaf_node_find(root_page_num, key);
+            }
+        }
+
+        panic!("root node does not exist")
+    }
+
+    pub fn leaf_node_find(&mut self, page_num: usize, key: u32) -> Cursor {
+        let root_node = self.get_node(page_num).unwrap();
+        let num_cells = root_node.num_cells();
+
+        // binary search
+        let mut min_index = 0;
+        let mut one_past_max_index = num_cells;
+        while one_past_max_index != min_index {
+            let index = (min_index + one_past_max_index) / 2;
+            let key_at_index = root_node.get_key(index).unwrap();
+
+            if key == key_at_index {
+                return Cursor::new(self, page_num, index, false);
+            }
+
+            if key < key_at_index {
+                one_past_max_index = index;
+            } else {
+                min_index = index + 1;
+            }
+        }
+
+        return Cursor::new(self, page_num, min_index, false);
+    }
+
     pub fn get_node(&self, page_num: usize) -> Option<&LeafNode> {
         if page_num < self.pager.pages.len() {
             return Some(&self.pager.pages[page_num]);

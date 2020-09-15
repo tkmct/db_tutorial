@@ -3,7 +3,7 @@ use super::{row::*, table::*};
 pub struct Cursor<'a> {
     table: &'a mut Table,
     page_num: usize,
-    cell_num: usize,
+    pub cell_num: usize,
     end_of_table: bool,
 }
 

@@ -20,6 +20,7 @@ pub enum ExecuteResult {
     SelectSuccess(Vec<Row>),
     TableFull,
     EmptyRow,
+    DuplicatedKey(u32),
 }
 
 // Hard coded table
@@ -68,15 +69,19 @@ impl Statement {
     }
 
     fn execute_insert(&self, table: &mut Table) -> ExecuteResult {
-        // TODO: get num_cell of node
-        let num_cells = table.get_node(table.root_page_num).unwrap().num_cells();
-
-        if num_cells >= MAX_NUM_CELLS {
-            return ExecuteResult::TableFull;
-        }
-
         if let Some(row_to_insert) = &self.row {
-            let mut cursor = table.table_end();
+            let key_to_insert = row_to_insert.id;
+            let node = table.get_node(table.root_page_num).unwrap();
+            if node.key_duplicated(key_to_insert) {
+                return ExecuteResult::DuplicatedKey(key_to_insert);
+            }
+
+            let num_cells = node.num_cells();
+            if num_cells >= MAX_NUM_CELLS {
+                return ExecuteResult::TableFull;
+            }
+
+            let mut cursor = table.table_find(key_to_insert);
             let _ = cursor.insert_value(&row_to_insert);
 
             return ExecuteResult::InsertSuccess;
@@ -142,6 +147,31 @@ mod tests {
     }
 
     #[test]
+    fn test_insert_should_sort_keys() -> Result<(), Box<dyn Error>> {
+        {
+            let mut table = Table::open(TEST_FILE)?;
+            let stmt = Statement::prepare("insert 1 user user@example.com")?;
+            let _ = stmt.execute(&mut table);
+            let stmt = Statement::prepare("insert 3 user3 user3@example.com")?;
+            let _ = stmt.execute(&mut table);
+            let stmt = Statement::prepare("insert 2 user2 user2@example.com")?;
+            let _ = stmt.execute(&mut table);
+            let stmt = Statement::prepare("select")?;
+            let result = stmt.execute(&mut table);
+            assert_eq!(
+                result,
+                ExecuteResult::SelectSuccess(vec![
+                    Row::new(1, String::from("user"), String::from("user@example.com")),
+                    Row::new(2, String::from("user2"), String::from("user2@example.com")),
+                    Row::new(3, String::from("user3"), String::from("user3@example.com")),
+                ])
+            );
+        }
+        let _ = fs::remove_file(TEST_FILE);
+        Ok(())
+    }
+
+    #[test]
     fn test_table_is_full() -> Result<(), Box<dyn Error>> {
         {
             let mut table = Table::open(TEST_FILE)?;
@@ -193,6 +223,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_persistence() -> Result<(), Box<dyn Error>> {
         {
             let mut table = Table::open(TEST_FILE)?;
@@ -217,6 +248,21 @@ mod tests {
             );
         }
 
+        let _ = fs::remove_file(TEST_FILE);
+        Ok(())
+    }
+
+    #[test]
+    fn test_reject_duplicate_key() -> Result<(), Box<dyn Error>> {
+        {
+            let mut table = Table::open(TEST_FILE)?;
+            let stmt = Statement::prepare("insert 1 user user@example.com")?;
+
+            let _ = stmt.execute(&mut table);
+            let result = stmt.execute(&mut table);
+            assert_eq!(result, ExecuteResult::DuplicatedKey(1));
+            table.close();
+        }
         let _ = fs::remove_file(TEST_FILE);
         Ok(())
     }

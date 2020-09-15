@@ -90,6 +90,10 @@ impl LeafNode {
         self.header.num_cells
     }
 
+    pub fn is_root(&self) -> bool {
+        self.header.is_root
+    }
+
     pub fn new(is_root: bool, parent: u32, num_cells: u32, body: Vec<(Key, Value)>) -> Self {
         Self {
             header: LeafNodeHeader {
@@ -102,11 +106,18 @@ impl LeafNode {
     }
 
     pub fn get_value(&self, num: usize) -> Option<Value> {
-        if num >= self.num_cells() {
-            return None;
-        }
+        self.body.get(num).map(|(_, v)| v.clone())
+    }
 
-        Some(self.body[num].1.clone())
+    pub fn get_key(&self, num: usize) -> Option<Key> {
+        self.body.get(num).map(|(k, _)| *k)
+    }
+
+    pub fn key_duplicated(&self, key: Key) -> bool {
+        // if cursor.cell_num < num_cells && node.get_key(cursor.cell_num) == Some(key_to_insert) {
+        // }
+        // TODO: implement
+        false
     }
 
     pub fn insert_at(&mut self, pos: usize, key: Key, value: Value) -> Result<(), Box<dyn Error>> {
